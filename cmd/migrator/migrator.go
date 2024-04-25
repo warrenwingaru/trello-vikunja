@@ -10,6 +10,7 @@ import (
 	"github.com/warrenwingaru/go-trello"
 	"github.com/yuin/goldmark"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 	"wingaru.me/trello-migrate/internal/migration"
@@ -77,6 +78,21 @@ func getPadding(padding int) string {
 
 var boardsToMigrate []string
 
+func readInputUnix() string {
+	reader := bufio.NewReader(os.Stdin)
+	fmt.Print("Enter the numbers of board to migrate (1, 3, 4): ")
+	text, _ := reader.ReadString('\n')
+	return text
+}
+
+func readInputWindows() string {
+	fmt.Print("Enter the numbers of board to migrate (1, 3, 4): ")
+	scanner := bufio.NewScanner(os.Stdin)
+	scanner.Scan()
+	text := scanner.Text()
+	return text
+}
+
 func main() {
 	Init()
 	logger := logrus.New()
@@ -114,9 +130,13 @@ func main() {
 		}
 	}
 
-	reader := bufio.NewReader(os.Stdin)
+	var text string
 	fmt.Print("Enter the numbers of board to migrate (1, 3, 4): ")
-	text, _ := reader.ReadString('\n')
+	if strings.Contains(strings.ToLower(runtime.GOOS), "windows") {
+		text = readInputWindows()
+	} else {
+		text = readInputUnix()
+	}
 	chosenInStr := strings.Split(strings.TrimSpace(text), ",")
 	chosen := make([]int, 0, len(chosenInStr))
 	for _, str := range chosenInStr {
