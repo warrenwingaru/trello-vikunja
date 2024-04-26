@@ -163,11 +163,18 @@ func main() {
 	// upload
 	for _, board := range data {
 		// dry run
+		if len(board.Buckets) > 0 {
+			logger.Debugf("Uploading %d bucket", len(board.Buckets))
+		}
 		for _, bucket := range board.Buckets {
 			// create a bucket
 			err := client.CreateBucket(bucket)
 			if err != nil {
 				panic(err)
+			}
+
+			if len(bucket.TasksWithComments) > 0 {
+				logger.Debugf("Uploading %d tasks", len(bucket.TasksWithComments))
 			}
 
 			for _, task := range bucket.TasksWithComments {
@@ -179,6 +186,9 @@ func main() {
 					panic(err)
 				}
 
+				if len(task.Comments) > 0 {
+					logger.Debugf("Uploading %d comments", len(task.Comments))
+				}
 				// add task comments
 				for _, comment := range task.Comments {
 					comment.TaskID = newTask.ID
@@ -188,10 +198,16 @@ func main() {
 					}
 				}
 
-				// add attachments
-				err = client.AddTaskAttachments(newTask.ID, task.Attachments)
-				if err != nil {
-					panic(err)
+				if len(task.Attachments) > 0 {
+					logger.Debugf("Uploading %d attachments", len(task.Attachments))
+				}
+				for _, attachment := range task.Attachments {
+					if len(attachment.File.FileContent) > 0 {
+						err = client.AddTaskAttachments(newTask.ID, attachment)
+						if err != nil {
+							panic(err)
+						}
+					}
 				}
 			}
 
@@ -336,8 +352,9 @@ func convertTrelloToVikunja(boards []*trello.Board, vikunjaData map[string]model
 							for _, attachment := range card.Attachments {
 								if attachment.IsUpload {
 									fmt.Printf("[Trello Migration] Downloading card attachment %s\n", attachment.ID)
+
 									buf, err := migration.DownloadFileWithHeaders(attachment.URL, map[string][]string{
-										"Authorization": {`Oauth oauth_consumer_key=` + trelloApiKey + `", oauth_token="` + trelloApiToken + `"`},
+										"Authorization": {`OAuth oauth_consumer_key="` + trelloApiKey + `", oauth_token="` + trelloApiToken + `"`},
 									})
 									if err != nil {
 										return nil, err

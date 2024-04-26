@@ -200,7 +200,7 @@ func (c *Client) AddTaskComment(comment *models.TaskComment) error {
 	return nil
 }
 
-func (c *Client) AddTaskAttachments(taskID int64, attachment []*models.TaskAttachment) error {
+func (c *Client) AddTaskAttachments(taskID int64, attachment *models.TaskAttachment) error {
 
 	path := fmt.Sprintf("tasks/%d/attachments", taskID)
 
@@ -208,13 +208,18 @@ func (c *Client) AddTaskAttachments(taskID int64, attachment []*models.TaskAttac
 	var requestBody bytes.Buffer
 	writer := multipart.NewWriter(&requestBody)
 
-	for _, attachment := range attachment {
-		addBytesToRequest(attachment.File.FileContent, attachment.File.Name, writer)
+	part, err := writer.CreateFormFile("files", attachment.File.Name)
+	c.log("[vikunja] AddTaskAttachments %s", attachment.File.Name)
+	if err != nil {
+		return err
 	}
-
+	_, err = part.Write(attachment.File.FileContent)
+	if err != nil {
+		return err
+	}
 	writer.Close()
 
-	err := c.putMultipart(path, &requestBody, &attachment, writer)
+	err = c.putMultipart(path, &requestBody, &attachment, writer)
 	if err != nil {
 		return err
 	}
