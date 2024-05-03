@@ -23,6 +23,8 @@ var trelloApiKey string
 var trelloApiToken string
 var vikunjaApiKey string
 
+const maxTaskSize = 200
+
 func Init() {
 	err := godotenv.Load(".env")
 	if err != nil {
@@ -131,7 +133,6 @@ func main() {
 	}
 
 	var text string
-	fmt.Print("Enter the numbers of board to migrate (1, 3, 4): ")
 	if strings.Contains(strings.ToLower(runtime.GOOS), "windows") {
 		text = readInputWindows()
 	} else {
@@ -290,11 +291,10 @@ func convertTrelloToVikunja(boards []*trello.Board, vikunjaData map[string]model
 			// create bucket for each view or maybe for kanban only
 			for _, view := range projectFromData.Views {
 				if view.Title == "Kanban" {
-					bucket := &models.Bucket{
-						ProjectID:     projectFromData.ID,
-						ProjectViewID: view.ID,
-						Title:         "Archived Tasks",
-					}
+					var buckets []*models.Bucket
+					buckets = []*models.Bucket{}
+					var tasks []*models.TaskWithComments
+					tasks = []*models.TaskWithComments{}
 
 					// Create tasks with the new bucket
 					for _, l := range board.Lists {
@@ -306,7 +306,6 @@ func convertTrelloToVikunja(boards []*trello.Board, vikunjaData map[string]model
 							task := &models.TaskWithComments{
 								Task: models.Task{
 									Title:     card.Name,
-									BucketID:  bucket.ID,
 									ProjectID: projectFromData.ID,
 								},
 							}
@@ -424,11 +423,38 @@ func convertTrelloToVikunja(boards []*trello.Board, vikunjaData map[string]model
 									task.Comments = append(task.Comments, comment)
 								}
 							}
-							bucket.TasksWithComments = append(bucket.TasksWithComments, task)
+
+							tasks = append(tasks, task)
+
+							// Hard limits to tasks size to maxTaskSize
+							// Creates a bucket for each 200 sized tasks.
+							if len(tasks) >= maxTaskSize {
+								bucket := &models.Bucket{
+									ProjectID:         projectFromData.ID,
+									ProjectViewID:     view.ID,
+									Title:             fmt.Sprintf("Archived Tasks %d", len(buckets)+1),
+									TasksWithComments: tasks,
+								}
+
+								project.Buckets = append(project.Buckets, bucket)
+
+								tasks = []*models.TaskWithComments{}
+							}
 						}
 
 					}
-					project.Buckets = append(project.Buckets, bucket)
+
+					// If there's still left from the hard limit
+					if len(tasks) > 0 {
+						bucket := &models.Bucket{
+							ProjectID:         projectFromData.ID,
+							ProjectViewID:     view.ID,
+							Title:             fmt.Sprintf("Archived Tasks %d", len(buckets)+1),
+							TasksWithComments: tasks,
+						}
+
+						project.Buckets = append(project.Buckets, bucket)
+					}
 				}
 			}
 			fmt.Printf("[Trello Migration] Converted all cards to tasks for board %s\n", board.ID)
